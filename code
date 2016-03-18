@@ -1,62 +1,145 @@
 from __future__ import division
 import matplotlib.pyplot as plt
+from scipy.integrate import quad,dblquad
 import numpy as np
 from numpy import *
+from numpy import linalg as LA
+from numpy.linalg import inv
 import time
 import timing
 
+
+#diagonalization 
+ly=np.array([[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],[0.2856,-0.4318,0.0928,0.0250,0.0142,0.0142,0.0,0.0],[0.0753,0.0479,-0.1928,0.0568,0.0073,0.0034,0.0021,0.0],[0.0273,0.0144,0.1181,-0.2530,0.0813,0.0089,0.0025,0.0005],[0.0049,0.0020,0.0174,0.0701,-0.0171,0.0713,0.0047,0.0007],[0.0010,0.0,0.0048,0.0107,0.0688,-0.1172,0.0309,0.0010],[0.0,0.0,0.0030,0.0030,0.0105,0.0787,-0.1043,0.0091],[0.0,0.0,0.0,0.0031,0.0020,0.0083,0.1019,-0.1153]])
+eigva,eigve=LA.eig(ly)
+vec=inv(eigve)[:,0]
+print eigva
+print eigve
+print vec
+new=np.zeros((8,8))
+for i in xrange(1,8):
+    new[i,:]=eigve[i,:]*vec
+print new
 #Parameters
 start_time=time.time()
 n=10000
 m=5000
-k=50
+k=50.0
 theta=0.10
 beta=0.03
-T=1
-t=0.
+T=2
+t=0
 dt=(T-t)/float(n)
 r0=0.02
+epsi=0.01
+v=0.1
+my=0.20
+y=np.zeros(n)
+y0=0.15
+y[0]=y0
+lam0=0.03
+l=20.0
 
+#compute several responding parameters
+def integrand(m,v,x):
+    return (x**2/(v*np.sqrt(2*pi)))*np.exp(-((x-m)**2)/(2*v**2))
+
+I=np.sqrt(quad(lambda x:integrand(my,v,x),-np.inf,np.inf)[0])
+print I
+
+def integrand1(v,I,m):
+    return dblquad(lambda y,x:(2*y/v**2)*((x**2-I**2)/(v*np.sqrt(2*pi)))*np.exp(-((x-m)**2)/(2*v**2)),-Inf,Inf,lambda x:-Inf,lambda x:x)
+O=integrand1(v,I,my)[0]
+print O
+
+def integrand2(T,l,s):
+    return ((1-np.exp(-l*(T-s)))*(1/l))**3
+U=quad(lambda s:integrand2(T,l,s),0,1)[0]
+print U
+alpha=0.05
 #compute the real price via affine approach
-def exact(k,theta,beta,T,t,r0):
+def bond(k,theta,beta,T,t,r0):
     R=theta-(beta**2)/(2*(k**2))
     tau=T-t
     B=(1-np.exp(-k*tau))*(1/k)
     A=np.exp(-(R*(tau-B)+(B**2)+(beta**2)/(4*k**2)))
     return A*np.exp(-B*r0)
+def exact(k,theta,beta,alpha,l,I,T,t,r0,lam0):
+    RA=theta-(beta**2)/(2*(k**2))
+    RB=theta-(alpha*(I**2))/(2*(l**2))
+    tau=T-t
+    A=(1-np.exp(-k*tau))*(1/k)
+    B=alpha*(1-np.exp(-l*tau))*(1/l)
+    C=np.exp(-(RB*(alpha*tau-B)+(B**2)*(I**2)/(4*l))-(RA*(tau-A)+(A**2)*(beta**2)/(4*k)))
+    return C*np.exp(-B*lam0-A*r0)
+peps=np.zeros(8)
+for i in xrange(0,8):
+    pop=-(eigva[i])
+    peps[i]=exact(k,theta,beta,pop,l,I,T,t,r0,lam0)
+
+
 
 #mc simulation for the price
 r=np.zeros((n,m),dtype=float)
+lam=np.zeros((n,m),dtype=float)
 r[0,:]=r0
+lam[0,:]=lam0
 sum1=r0
-sf=np.zeros(n)
-sf[0]=r0
-rmean=np.zeros(n)
-rmean[0]=r0
+sum2=lam0
+z=np.zeros(n)
+z[0]=0.2
+delta=0.01
+
 for i in xrange(1,n):
+    y[i]=y[i-1]+(my-y[i-1])*dt/epsi +v*np.sqrt(2/epsi)*np.sqrt(dt)*np.random.standard_normal(1)
+    z[i]=z[i-1]+delta*z[i-1]*dt+np.sqrt(delta*z[i-1]*dt)*np.random.standard_normal(1)
     ran=np.random.standard_normal(m)
+    ran1=np.random.standard_normal(m)
+    lam[i,:]=lam[i-1,:]+l*(theta-lam[i-1,:])*dt + (y[i]+z[i])*(np.sqrt(dt))*ran1
     r[i,:]=r[i-1,:]+k*(theta-r[i-1,:])*dt + beta*(np.sqrt(dt))*ran
     sum1+=r[i,:]
-    rmean[i]=mean(r[i,:])
+    sum2+=lam[i,:]
     print i
-price1=mean(np.exp(-dt*sum1))
-stdd= np.std(r)
-print "\n""\n",("The mc price is:%f" % price1),"\n",("The exact price is:%f"% exact(k,theta,beta,T,t,r0)),"\n",("The standard deviation is:%f"% stdd)
+p=np.zeros(8)
+for i in xrange(0,8):
+    x=-(eigva[i])
+    p[i]=mean(np.exp(-dt*(sum1+x*sum2)))
+print p
+print peps
+price1=bond(k,theta,beta,T,t,r0)-sum(p*new[3,:])
+stdd1= np.std(r)
+stdd2=np.std(lam)
+asm=bond(k,theta,beta,T,t,r0)-sum((1-0.6*U*O*v*np.sqrt(epsi/2))*peps*new[3,:])
+print "\n""\n",("The mc price is:%f" % price1),"\n",("The exact price is:%f"% asm),"\n",("The default-free bond price is:%f" % bond(k,theta,beta,T,t,r0)),"\n",("The standard deviation of r is:%f"% stdd1),"\n",("The standard deviation of lambda is:%f"% stdd2)
 print "\n""\n",("--- %s seconds ---" % (time.time() - start_time))
+print 0.6*U*v*np.sqrt(epsi/2)
 
-#plot the figure
+
+#compute the price of option
+bb=np.zeros(m)
+for i in xrange(0,m):
+    r1=r[5000,i]
+    lam1=lam[5000,i]
+    for j in xrange(0,8):
+       d =-(eigva[j])
+       peps[j]=exact(k,theta,beta,d,l,I,T,t,r1,lam1)
+    bb[i]=max(bond(k,theta,beta,T,t,r1)-sum((1-0.6*U*O*v*np.sqrt(epsi/2))*peps*new[3,:])-0.6, 0.0)
+cc=mean(bb*np.exp(-dt*(r[5000,:]+lam[5000,:])))
+print "\n""\n",("The mc price of option is:%f" % cc),np.count_nonzero(bb),r[5000,:]
+
+#plot the figure(not necessarily needed)
 fig1=plt.figure()
-a=np.arange(0,n)
-b=rmean
+a=np.arange(0,n)/n
+b=lam[:,0]
 c=r[:,0]
-plt.plot(a,b,"k--")
 plt.plot(a,c,"k")
 plt.xlabel("time")
 plt.ylabel("interest rate")
 plt.title("the dynamic of interest rate under vaseick model")
 fig2=plt.figure()
-c=np.arange(0,m)
-d=sum1
-plt.plot(c,d,"k")
+plt.plot(a,b,"k")
+plt.xlabel("time")
+plt.ylabel("intensity rate")
+plt.title("the dynamic of hazard under stochastic volatility model")
 plt.show()
 print timing
