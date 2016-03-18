@@ -20,6 +20,7 @@ new=np.zeros((8,8))
 for i in xrange(1,8):
     new[i,:]=eigve[i,:]*vec
 print new
+
 #Parameters
 start_time=time.time()
 n=10000
@@ -57,6 +58,7 @@ def integrand2(T,l,s):
 U=quad(lambda s:integrand2(T,l,s),0,1)[0]
 print U
 alpha=0.05
+
 #compute the real price via affine approach
 def bond(k,theta,beta,T,t,r0):
     R=theta-(beta**2)/(2*(k**2))
