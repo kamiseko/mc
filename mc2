@@ -9,7 +9,7 @@ import time
 import timing
 
 
-#diagonalization 
+
 ly=np.array([[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],[0.2856,-0.4318,0.0928,0.0250,0.0142,0.0142,0.0,0.0],[0.0753,0.0479,-0.1928,0.0568,0.0073,0.0034,0.0021,0.0],[0.0273,0.0144,0.1181,-0.2530,0.0813,0.0089,0.0025,0.0005],[0.0049,0.0020,0.0174,0.0701,-0.0171,0.0713,0.0047,0.0007],[0.0010,0.0,0.0048,0.0107,0.0688,-0.1172,0.0309,0.0010],[0.0,0.0,0.0030,0.0030,0.0105,0.0787,-0.1043,0.0091],[0.0,0.0,0.0,0.0031,0.0020,0.0083,0.1019,-0.1153]])
 eigva,eigve=LA.eig(ly)
 vec=inv(eigve)[:,0]
@@ -27,8 +27,8 @@ m=5000
 k=50.0
 theta=0.10
 beta=0.03
-T=2
-t=0
+T=4
+t=2
 dt=(T-t)/float(n)
 r0=0.02
 epsi=0.01
@@ -64,7 +64,7 @@ def bond(k,theta,beta,T,t,r0):
     B=(1-np.exp(-k*tau))*(1/k)
     A=np.exp(-(R*(tau-B)+(B**2)+(beta**2)/(4*k**2)))
     return A*np.exp(-B*r0)
-def exact(k,theta,beta,alpha,l,I,T,t,r0,lam0):
+def exact(k,theta,beta,alpha,l,I,T,t,r0):
     RA=theta-(beta**2)/(2*(k**2))
     RB=theta-(alpha*(I**2))/(2*(l**2))
     tau=T-t
@@ -75,7 +75,7 @@ def exact(k,theta,beta,alpha,l,I,T,t,r0,lam0):
 peps=np.zeros(8)
 for i in xrange(0,8):
     pop=-(eigva[i])
-    peps[i]=exact(k,theta,beta,pop,l,I,T,t,r0,lam0)
+    peps[i]=exact(k,theta,beta,pop,l,I,T,t,r0)
 
 
 
@@ -106,28 +106,14 @@ for i in xrange(0,8):
     p[i]=mean(np.exp(-dt*(sum1+x*sum2)))
 print p
 print peps
-price1=bond(k,theta,beta,T,t,r0)-sum(p*new[3,:])
+price1=bond(k,theta,beta,T,t,r0)-sum(p*new[2,:])
 stdd1= np.std(r)
 stdd2=np.std(lam)
-asm=bond(k,theta,beta,T,t,r0)-sum((1-0.6*U*O*v*np.sqrt(epsi/2))*peps*new[3,:])
+asm=bond(k,theta,beta,T,t,r0)-sum((1-0.6*U*O*v*np.sqrt(epsi/2))*peps*new[2,:])
 print "\n""\n",("The mc price is:%f" % price1),"\n",("The exact price is:%f"% asm),"\n",("The default-free bond price is:%f" % bond(k,theta,beta,T,t,r0)),"\n",("The standard deviation of r is:%f"% stdd1),"\n",("The standard deviation of lambda is:%f"% stdd2)
-print "\n""\n",("--- %s seconds ---" % (time.time() - start_time))
-print 0.6*U*v*np.sqrt(epsi/2)
+print "\n""\n",("--- %s seconds ---" % (time.time() - start_time)),exact(k,theta,beta,alpha,l,I,T,t,r0),sum(p*new[3,:]),p*new[3,:],p,sum(new[3,:])
 
-
-#compute the price of option
-bb=np.zeros(m)
-for i in xrange(0,m):
-    r1=r[5000,i]
-    lam1=lam[5000,i]
-    for j in xrange(0,8):
-       d =-(eigva[j])
-       peps[j]=exact(k,theta,beta,d,l,I,T,t,r1,lam1)
-    bb[i]=max(bond(k,theta,beta,T,t,r1)-sum((1-0.6*U*O*v*np.sqrt(epsi/2))*peps*new[3,:])-0.6, 0.0)
-cc=mean(bb*np.exp(-dt*(r[5000,:]+lam[5000,:])))
-print "\n""\n",("The mc price of option is:%f" % cc),np.count_nonzero(bb),r[5000,:]
-
-#plot the figure(not necessarily needed)
+#plot the figure
 fig1=plt.figure()
 a=np.arange(0,n)/n
 b=lam[:,0]
